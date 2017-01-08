@@ -12,16 +12,28 @@ import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 
+object SQLContextSingleton {
+
+  @transient private var instance: SQLContext = _
+
+  def getInstance(sparkContext: SparkContext): SQLContext = {
+    if (instance == null) {
+      instance = new SQLContext(sparkContext)
+    }
+    instance
+  }
+}
+
 class Test extends Serializable {
 
-  val path = "/Users/espataro/Documents/enron/edrm-enron-v2"
-  val pathToExtract = "/Users/espataro/Documents/enron/enron_extract"
-  val pathToTextFiles = "/Users/espataro/Documents/enron/enron_extract/text_000"
+  val path = "/enron/edrm-enron-v2"
+  val pathToExtract = "/enron/enron_extract"
+  val pathToTextFiles = "/enron/enron_extract/text_000"
 
   val sc = new SparkContext("local","EnronXML")
   val sqlContext = SQLContextSingleton.getInstance(sc)
 
-  def computeZips(pathToZipFolder: Path) = {
+  def computeZips() = {
     unzip(Paths.get(pathToExtract))
 
     val xml = sqlContext
@@ -29,10 +41,12 @@ class Test extends Serializable {
         .format("com.databricks.spark.xml")
         .option("rootTag", "books")
         .option("rowTag", "Document")
-        .load("/Users/espataro/Documents/enron/enron_extract/*.xml")
+        .load("/enron/enron_extract/*.xml")
 
     val top_recipients = computeTopRecipients(xml)
     val avgLength = computeAverageLength(xml)
+    println(s"The top 100 email recipients are: $top_recipients")
+    println(s"The average number of words in the emails is $avgLength")
   }
 
   private def computeTopRecipients(xml: DataFrame): List[String]= {
@@ -87,7 +101,7 @@ class Test extends Serializable {
     val src = scala.io.Source.fromFile(pathToFile)
     val count =
       (for {
-        line <- src.getLines
+        line <- src.getLines()
       } yield {
         val words = line.split(" ")
         words.size
@@ -127,21 +141,8 @@ class Test extends Serializable {
   }
     }
 
-  object SQLContextSingleton {
-
-    @transient private var instance: SQLContext = _
-
-    def getInstance(sparkContext: SparkContext): SQLContext = {
-      if (instance == null) {
-        instance = new SQLContext(sparkContext)
-      }
-      instance
-    }
-  }
-
   object test {
     def main(args: Array[String]): Unit = {
-      val path = "/Users/espataro/Documents/enron/edrm-enron-v2/"
-      new Test().computeZips(Paths.get(path))
+      new Test().computeZips()
     }
   }
